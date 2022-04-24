@@ -2,3 +2,4 @@ node_modules
 dist
 duplicates.json
 package-lock.json
+config.json
