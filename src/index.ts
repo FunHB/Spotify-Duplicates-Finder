@@ -9,7 +9,7 @@ const main = async () => {
     await spotify.validate()
 
     const duplicates = `[\n${spotify.duplicates.map(tracks => `\t[${toString(tracks.first)}, ${toString(tracks.second)}]`).join(',\n\n')}\n]`
-    console.info(`Duplicates: ${duplicates}`)
+    // console.info(`Duplicates: ${duplicates}`)
     writeFileSync('./duplicates.json', duplicates)
 }
 

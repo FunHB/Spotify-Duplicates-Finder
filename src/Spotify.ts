@@ -1,13 +1,18 @@
 import fetch from 'node-fetch'
 import { Track } from './Track.js'
 
+interface TrackWithIndex {
+    index: number,
+    track: Track
+}
+
 export class Spotify {
     private readonly token: string
     private readonly playlistId: string
     private readonly limit: number
     private readonly start: number
 
-    private total: number = 0
+    private total: number = 1
     private offset: number = 0
 
     private list: Track[] = []
@@ -31,16 +36,19 @@ export class Spotify {
         })
         array.forEach((track, index) => {
             if (index + 1 == array.length) return
+
             const next = array[index + 1]
             if (!next?.name) return
 
-            const trackIndex = this.list.findIndex(_track => _track.id == track.id)
-            const nextIndex = this.list.findIndex(_track => _track.id == next.id)
+            const trackWithIndex: TrackWithIndex = { index: this.list.findIndex(_track => _track.id == track.id), track }
+            const nextWithIndex: TrackWithIndex = { index: this.list.findIndex(_track => _track.id == next.id), track: next }
 
-            if (this.compareTracks(track, next)) this.duplicates.push({
-                first: { index: trackIndex, track: this.list[trackIndex]! },
-                second: { index: nextIndex, track: this.list[nextIndex]! },
-            })
+            if (this.compareTracks(trackWithIndex, nextWithIndex)) {
+                this.duplicates.push({
+                    first: trackWithIndex,
+                    second: nextWithIndex
+                })
+            }
         })
     }
 
@@ -56,7 +64,7 @@ export class Spotify {
             })).json()
 
             if (json.error) throw `(${json.error.status}) ${json.error.message}`
-            if (!this.total) this.total = json.total
+            if (this.total < this.limit) this.total = json.total
 
             return json.items.map((item: { track: Track }) => item.track)
         } catch (exception) {
@@ -64,21 +72,24 @@ export class Spotify {
         }
     }
 
-    private compareTracks(first: Track, second: Track): boolean {
-        return first.name == second.name && first.id != second.id
+    private compareTracks(first: TrackWithIndex, second: TrackWithIndex): boolean {
+        return first.track.name == second.track.name && first.index != second.index
     }
 
     public async validate(): Promise<void> {
         console.info("[Validate] Starting...")
 
-        for (let i = 0; i < Math.ceil(this.total / this.limit) + 1; ++i) {
-            this.offset = this.start + (i * this.limit) - i
+        for (let i = 0; i < Math.ceil(this.total / this.limit); ++i) {
+            this.offset = this.start + (i * this.limit)
 
             console.info(`[Validate] Offset: ${this.offset}, Limit: ${this.limit}`)
 
             this.list = this.list.concat(await this.getList())
             await new Promise(resolve => setTimeout(resolve, 1000))
         }
+
+        console.log(this.list.length)
+        console.log(this.total)
 
         await this.findDuplicate()
         console.info("[Validate] Done!")
