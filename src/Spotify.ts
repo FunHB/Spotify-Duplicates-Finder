@@ -88,9 +88,6 @@ export class Spotify {
             await new Promise(resolve => setTimeout(resolve, 1000))
         }
 
-        console.log(this.list.length)
-        console.log(this.total)
-
         await this.findDuplicate()
         console.info("[Validate] Done!")
     }
