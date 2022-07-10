@@ -73,7 +73,8 @@ export class Spotify {
     }
 
     private compareTracks(first: TrackWithIndex, second: TrackWithIndex): boolean {
-        return first.track.name == second.track.name && first.index != second.index
+        return first.index != second.index && first.track.name == second.track.name
+        && first.track.artists.map(_artist => _artist.name).some(_artist => second.track.artists.map(_artist => _artist.name).includes(_artist))
     }
 
     public async validate(): Promise<void> {
