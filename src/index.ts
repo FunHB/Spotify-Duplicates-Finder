@@ -1,11 +1,9 @@
 import { Spotify } from "./Spotify.js"
-import { Config } from './config.js'
 import { Track } from "./Track.js"
 import { writeFileSync } from 'fs'
 
 const main = async () => {
-    const config = new Config()
-    const spotify = new Spotify(config.token, config.playlistId)
+    const spotify = new Spotify()
     await spotify.validate()
 
     const duplicates = `[\n${spotify.duplicates.map(tracks => `\t[${toString(tracks.first)}, ${toString(tracks.second)}]`).join(',\n\n')}\n]`

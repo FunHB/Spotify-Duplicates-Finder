@@ -1,4 +1,5 @@
-import fetch from 'node-fetch'
+import fetch, { RequestInit } from 'node-fetch'
+import { Config } from './config.js'
 import { Track } from './Track.js'
 
 interface TrackWithIndex {
@@ -7,8 +8,8 @@ interface TrackWithIndex {
 }
 
 export class Spotify {
-    private readonly token: string
-    private readonly playlistId: string
+    private readonly config: Config
+
     private readonly limit: number
     private readonly start: number
 
@@ -18,11 +19,24 @@ export class Spotify {
     private list: Track[] = []
     public duplicates: { first: { index: number, track: Track }, second: { index: number, track: Track } }[] = []
 
-    private get url(): string { return `https://api.spotify.com/v1/playlists/${this.playlistId}/tracks?market=ES&limit=${this.limit}&offset=${this.offset}` }
+    private get url(): string { return `https://api.spotify.com/v1/playlists/${this.config.playlistId}/tracks?market=ES&limit=${this.limit}&offset=${this.offset}` }
+    private get requestData(): RequestInit {
+        return {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.config.token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        }
+    }
 
-    constructor(token: string, playlistId: string, start = 0, limit = 100) {
-        this.token = `Bearer ${token}`
-        this.playlistId = playlistId
+    private async response(): Promise<any> {
+        return (await fetch(this.url, this.requestData)).json()
+    }
+
+    constructor(start = 0, limit = 100) {
+        this.config = new Config()
         this.start = start
         this.limit = limit
     }
@@ -54,16 +68,15 @@ export class Spotify {
 
     private async getList(): Promise<Track[]> {
         try {
-            const json = await (await fetch(this.url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': this.token,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            })).json()
+            let json = await this.response()
 
-            if (json.error) throw `(${json.error.status}) ${json.error.message}`
+            if (json.error) {
+                if (json.error.status != 401) throw `(${json.error.status}) ${json.error.message}`
+
+                await this.getToken()
+                json = await this.response()
+            }
+
             if (this.total < this.limit) this.total = json.total
 
             return json.items.map((item: { track: Track }) => item.track)
@@ -72,9 +85,32 @@ export class Spotify {
         }
     }
 
+    private async getToken(): Promise<void> {
+        try {
+            console.info(`[Request] Getting token...`)
+            const json = await (await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': 'Basic ' + Buffer.from(this.config.client_id + ':' + this.config.client_secret).toString('base64')
+                },
+                body: 'grant_type=client_credentials'
+            })).json()
+
+            if (json.error) throw `(${json.error.status}) ${json.error.message}`
+
+            this.config.token = json.access_token
+            this.config.save()
+
+            return json.access_token;
+        } catch (exception) {
+            throw new Error(`[Request] ${exception}`)
+        }
+    }
+
     private compareTracks(first: TrackWithIndex, second: TrackWithIndex): boolean {
         return first.index != second.index && first.track.name == second.track.name
-        && first.track.artists.map(_artist => _artist.name).some(_artist => second.track.artists.map(_artist => _artist.name).includes(_artist))
+            && first.track.artists.map(_artist => _artist.name).some(_artist => second.track.artists.map(_artist => _artist.name).includes(_artist))
     }
 
     public async validate(): Promise<void> {
